@@ -24,41 +24,35 @@ class ThirdsPreset : Preset {
         )
         val sb = f.subjectBox
         val hints = mutableListOf<Hint>()
-        var score = 70
+        var score: Int
 
         if (sb != null) {
             val cx = sb.centerX()
             val cy = sb.centerY()
-            val nearest = targets.minBy { (x, y) -> dist2(cx, cy, x, y) }
+            val nearest = targets.minBy { (x, y) -> ScoringUtils.dist2(cx, cy, x, y) }
             val dx = nearest.first - cx
             val dy = nearest.second - cy
-            val dist = sqrt(dist2(cx, cy, nearest.first, nearest.second))
-            score = (100 - (dist * 120)).toInt().coerceIn(0, 100)
+            val dist = sqrt(ScoringUtils.dist2(cx, cy, nearest.first, nearest.second))
+            score = ScoringUtils.distanceScore(dist, maxDist = 0.45f)
 
             if (abs(dx) > 0.03f || abs(dy) > 0.03f) {
                 hints += MoveHint(dxNorm = dx, dyNorm = dy)
                 hints += TextHint("Dịch chủ thể về điểm 1/3 gần nhất")
             }
         } else {
+            score = ScoringUtils.rollOnlyScore(f.rollDeg)
             hints += TextHint("Đưa chủ thể vào một trong 4 điểm 1/3")
         }
 
-        // Leveling bonus/penalty
-        val rollAbs = abs(f.rollDeg)
-        if (rollAbs > 2f) {
-            hints += RotateHint(degrees = -f.rollDeg)
-            score = (score - (rollAbs * 3)).toInt().coerceIn(0, 100)
-        }
+        // Roll penalty
+        val (penalty, rotateHint) = ScoringUtils.rollPenalty(f.rollDeg, threshold = 2f, weight = 3f)
+        score = (score - penalty).coerceAtLeast(0)
+        rotateHint?.let { hints += it }
 
         return Evaluation(
             score = score,
             hints = hints.sortedByDescending { it.priority },
             overlay = OverlaySpec.Grid(GridType.THIRDS)
         )
-    }
-
-    private fun dist2(x1: Float, y1: Float, x2: Float, y2: Float): Float {
-        val dx = x1 - x2; val dy = y1 - y2
-        return dx * dx + dy * dy
     }
 }

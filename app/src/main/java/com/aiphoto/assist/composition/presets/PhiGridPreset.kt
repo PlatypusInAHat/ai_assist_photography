@@ -22,34 +22,30 @@ class PhiGridPreset : Preset {
 
         val sb = f.subjectBox
         val hints = mutableListOf<Hint>()
-        var score = 68
+        var score: Int
 
         if (sb != null) {
             val cx = sb.centerX()
             val cy = sb.centerY()
-            val nearest = targets.minBy { (x, y) -> (cx - x) * (cx - x) + (cy - y) * (cy - y) }
+            val nearest = targets.minBy { (x, y) -> ScoringUtils.dist2(cx, cy, x, y) }
             val dx = nearest.first - cx
             val dy = nearest.second - cy
-            val dist = sqrt(
-                (cx - nearest.first) * (cx - nearest.first) +
-                (cy - nearest.second) * (cy - nearest.second)
-            )
-            score = (100 - (dist * 115)).toInt().coerceIn(0, 100)
+            val dist = sqrt(ScoringUtils.dist2(cx, cy, nearest.first, nearest.second))
+            score = ScoringUtils.distanceScore(dist, maxDist = 0.45f)
 
             if (abs(dx) > 0.03f || abs(dy) > 0.03f) {
                 hints += MoveHint(dx, dy)
                 hints += TextHint("Đặt chủ thể theo Phi Grid để bố cục \"mềm\" hơn 1/3")
             }
         } else {
+            score = ScoringUtils.rollOnlyScore(f.rollDeg)
             hints += TextHint("Thử Phi Grid cho ảnh lifestyle/food")
         }
 
-        // Leveling penalty
-        val rollAbs = abs(f.rollDeg)
-        if (rollAbs > 2f) {
-            hints += RotateHint(degrees = -f.rollDeg)
-            score = (score - (rollAbs * 2.5f)).toInt().coerceIn(0, 100)
-        }
+        // Roll penalty
+        val (penalty, rotateHint) = ScoringUtils.rollPenalty(f.rollDeg, threshold = 2f, weight = 2.5f)
+        score = (score - penalty).coerceAtLeast(0)
+        rotateHint?.let { hints += it }
 
         return Evaluation(score, hints.sortedByDescending { it.priority }, OverlaySpec.Grid(GridType.PHI))
     }

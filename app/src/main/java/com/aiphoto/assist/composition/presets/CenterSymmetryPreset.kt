@@ -17,7 +17,7 @@ class CenterSymmetryPreset : Preset {
 
     override fun evaluate(f: FrameFeatures): Evaluation {
         val hints = mutableListOf<Hint>()
-        var score = 75
+        var score: Int
         val sb = f.subjectBox
 
         if (sb != null) {
@@ -25,23 +25,22 @@ class CenterSymmetryPreset : Preset {
             val cy = sb.centerY()
             val dx = 0.5f - cx
             val dy = 0.5f - cy
-            val dist = sqrt(dx * dx + dy * dy)
-            score = (100 - dist * 160).toInt().coerceIn(0, 100)
+            val dist = sqrt(ScoringUtils.dist2(cx, cy, 0.5f, 0.5f))
+            score = ScoringUtils.distanceScore(dist, maxDist = 0.35f)
 
             if (abs(dx) > 0.02f || abs(dy) > 0.02f) {
                 hints += MoveHint(dx, dy)
                 hints += TextHint("Canh chủ thể vào giữa để tạo cảm giác đối xứng")
             }
         } else {
+            score = ScoringUtils.rollOnlyScore(f.rollDeg)
             hints += TextHint("Hợp với kiến trúc/cửa/hành lang")
         }
 
-        // Leveling penalty
-        val rollAbs = abs(f.rollDeg)
-        if (rollAbs > 1.5f) {
-            hints += RotateHint(degrees = -f.rollDeg)
-            score = (score - (rollAbs * 4)).toInt().coerceIn(0, 100)
-        }
+        // Center/symmetry is very sensitive to tilt
+        val (penalty, rotateHint) = ScoringUtils.rollPenalty(f.rollDeg, threshold = 1.5f, weight = 4f)
+        score = (score - penalty).coerceAtLeast(0)
+        rotateHint?.let { hints += it }
 
         return Evaluation(
             score,

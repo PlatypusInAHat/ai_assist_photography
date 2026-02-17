@@ -18,7 +18,7 @@ class LookroomPortraitPreset : Preset {
 
     override fun evaluate(f: FrameFeatures): Evaluation {
         val sb = f.subjectBox ?: return Evaluation(
-            60,
+            ScoringUtils.rollOnlyScore(f.rollDeg),
             listOf(TextHint("Cần nhận diện khuôn mặt")),
             OverlaySpec.Grid(GridType.PHI)
         )
@@ -30,14 +30,14 @@ class LookroomPortraitPreset : Preset {
             yaw < -0.1f -> 0.62f
             else -> 0.5f
         }
-        val targetY = 0.38f // eye line near 1/3 top / phi
+        val targetY = 0.38f // eye line near phi top
 
         val cx = sb.centerX()
         val cy = sb.centerY()
         val dx = targetX - cx
         val dy = targetY - cy
-        val dist = sqrt(dx * dx + dy * dy)
-        val score = (100 - dist * 150).toInt().coerceIn(0, 100)
+        val dist = sqrt(ScoringUtils.dist2(cx, cy, targetX, targetY))
+        var score = ScoringUtils.distanceScore(dist, maxDist = 0.4f)
 
         val hints = mutableListOf<Hint>()
         if (abs(dx) > 0.03f || abs(dy) > 0.03f) {
@@ -45,11 +45,10 @@ class LookroomPortraitPreset : Preset {
             hints += TextHint("Chừa khoảng theo hướng nhìn để ảnh tự nhiên hơn")
         }
 
-        // Leveling
-        val rollAbs = abs(f.rollDeg)
-        if (rollAbs > 2f) {
-            hints += RotateHint(-f.rollDeg)
-        }
+        // Roll penalty
+        val (penalty, rotateHint) = ScoringUtils.rollPenalty(f.rollDeg, threshold = 2f, weight = 3f)
+        score = (score - penalty).coerceAtLeast(0)
+        rotateHint?.let { hints += it }
 
         return Evaluation(score, hints.sortedByDescending { it.priority }, OverlaySpec.Grid(GridType.PHI))
     }

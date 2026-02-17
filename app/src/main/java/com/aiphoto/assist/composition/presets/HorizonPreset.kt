@@ -17,28 +17,30 @@ class HorizonPreset : Preset {
 
     override fun evaluate(f: FrameFeatures): Evaluation {
         val hy = f.horizonYNorm ?: return Evaluation(
-            60,
+            ScoringUtils.rollOnlyScore(f.rollDeg),
             listOf(TextHint("Không thấy đường chân trời rõ")),
             OverlaySpec.Grid(GridType.THIRDS)
         )
 
         val candidates = listOf(1f / 3f, 2f / 3f)
         val nearest = candidates.minBy { abs(hy - it) }
-        val delta = nearest - hy
+        val delta = abs(nearest - hy)
 
-        val base = (100 - abs(delta) * 220).toInt().coerceIn(0, 100)
+        // Use distanceScore with 1-D distance
+        var score = ScoringUtils.distanceScore(delta, maxDist = 0.35f)
         val hints = mutableListOf<Hint>()
 
-        if (abs(delta) > 0.03f) {
-            hints += MoveHint(dxNorm = 0f, dyNorm = delta)
+        if (delta > 0.03f) {
+            val direction = nearest - hy   // positive = move down, negative = move up
+            hints += MoveHint(dxNorm = 0f, dyNorm = direction)
             hints += TextHint("Đưa đường chân trời về 1/3 để ảnh \"thoáng\" hơn")
         }
 
-        // Leveling via roll
-        if (abs(f.rollDeg) > 1.5f) {
-            hints += RotateHint(-f.rollDeg)
-        }
+        // Roll penalty — horizon shots are very sensitive to tilt
+        val (penalty, rotateHint) = ScoringUtils.rollPenalty(f.rollDeg, threshold = 1.5f, weight = 4f)
+        score = (score - penalty).coerceAtLeast(0)
+        rotateHint?.let { hints += it }
 
-        return Evaluation(base, hints.sortedByDescending { it.priority }, OverlaySpec.Horizon(yNorm = hy))
+        return Evaluation(score, hints.sortedByDescending { it.priority }, OverlaySpec.Horizon(yNorm = hy))
     }
 }

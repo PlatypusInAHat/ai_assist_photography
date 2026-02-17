@@ -2,8 +2,6 @@ package com.aiphoto.assist.composition.presets
 
 import com.aiphoto.assist.composition.*
 import com.aiphoto.assist.composition.hints.*
-import kotlin.math.abs
-import kotlin.math.sqrt
 
 /**
  * Diagonal / Dynamic — subject along the main diagonals.
@@ -17,32 +15,30 @@ class DiagonalPreset : Preset {
 
     override fun evaluate(f: FrameFeatures): Evaluation {
         val hints = mutableListOf<Hint>()
-        var score = 70
+        var score: Int
         val sb = f.subjectBox
 
         if (sb != null) {
             val cx = sb.centerX()
             val cy = sb.centerY()
-            // Distance to main diagonal y=x (normalized)
-            val dMain = abs(cy - cx) / sqrt(2f)
-            // Distance to anti-diagonal y=1-x
-            val dAnti = abs(cy - (1f - cx)) / sqrt(2f)
-            val d = minOf(dMain, dAnti)
+            val d = minOf(
+                ScoringUtils.distToMainDiagonal(cx, cy),
+                ScoringUtils.distToAntiDiagonal(cx, cy)
+            )
+            score = ScoringUtils.distanceScore(d, maxDist = 0.35f)
 
-            score = (100 - d * 170).toInt().coerceIn(0, 100)
             if (d > 0.05f) {
                 hints += TextHint("Thử xoay/góc máy để chủ thể nằm gần đường chéo")
             }
         } else {
+            score = ScoringUtils.rollOnlyScore(f.rollDeg)
             hints += TextHint("Hợp cho street, travel, food flat-lay")
         }
 
-        // Leveling (diagonals can tolerate more tilt)
-        val rollAbs = abs(f.rollDeg)
-        if (rollAbs > 5f) {
-            hints += RotateHint(degrees = -f.rollDeg)
-            score = (score - (rollAbs * 2)).toInt().coerceIn(0, 100)
-        }
+        // Diagonal compositions tolerate more tilt
+        val (penalty, rotateHint) = ScoringUtils.rollPenalty(f.rollDeg, threshold = 5f, weight = 2f)
+        score = (score - penalty).coerceAtLeast(0)
+        rotateHint?.let { hints += it }
 
         return Evaluation(score, hints.sortedByDescending { it.priority }, OverlaySpec.Diagonal(true))
     }
