@@ -31,6 +31,7 @@ import com.aiphoto.assist.composition.hints.RotateHint
 import com.aiphoto.assist.composition.hints.TextHint
 import com.aiphoto.assist.composition.presets.*
 import com.aiphoto.assist.sensors.LevelSensor
+import com.aiphoto.assist.vision.HorizonDetector
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -55,6 +56,9 @@ fun CameraScreen() {
         levelSensor.start()
         onDispose { levelSensor.stop() }
     }
+
+    // Vision
+    val horizonDetector = remember { HorizonDetector() }
 
     // Preset manager
     val presetManager = remember {
@@ -84,6 +88,7 @@ fun CameraScreen() {
                     previewView = previewView,
                     analyzer = FrameAnalyzer(
                         levelSensor = levelSensor,
+                        horizonDetector = horizonDetector,
                         presetManager = presetManager,
                         selectedPresetId = { selectedPresetId },
                         autoMode = { autoMode },
