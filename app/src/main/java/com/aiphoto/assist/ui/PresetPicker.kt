@@ -8,7 +8,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,21 +18,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiphoto.assist.composition.PresetId
 
-data class PresetOption(
-    val id: String?,  // null = Auto
-    val label: String,
-    val emoji: String
-)
-
-val defaultPresetOptions = listOf(
-    PresetOption(null, "Auto", "🤖"),
-    PresetOption("thirds", "1/3", "🔲"),
-    PresetOption("phi", "Phi", "🌀"),
-    PresetOption("center", "Giữa", "⊕"),
-    PresetOption("diagonal", "Chéo", "⤡"),
-    PresetOption("horizon", "Chân trời", "🌅"),
-    PresetOption("lookroom", "Portrait", "🧑"),
+private val presetOptions = listOf(
+    PresetId.AUTO to ("🤖" to "Auto"),
+    PresetId.THIRDS to ("🔲" to "1/3"),
+    PresetId.PHI to ("🌀" to "Phi"),
+    PresetId.CENTER to ("⊕" to "Giữa"),
+    PresetId.DIAGONAL to ("⤡" to "Chéo"),
+    PresetId.HORIZON to ("🌅" to "Chân trời"),
+    PresetId.LEADING to ("↗️" to "Đường dẫn"),
+    PresetId.LOOKROOM to ("🧑" to "Portrait"),
 )
 
 /**
@@ -41,9 +36,8 @@ val defaultPresetOptions = listOf(
  */
 @Composable
 fun PresetPicker(
-    selectedId: String?,   // null = Auto
-    autoMode: Boolean,
-    onSelect: (String?) -> Unit,
+    selected: PresetId,
+    onSelect: (PresetId) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -54,13 +48,14 @@ fun PresetPicker(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        defaultPresetOptions.forEach { option ->
-            val isSelected = if (option.id == null) autoMode else (!autoMode && option.id == selectedId)
+        presetOptions.forEach { (preset, emojiLabel) ->
+            val (emoji, label) = emojiLabel
+            val isSelected = preset == selected
             PresetChip(
-                label = option.label,
-                emoji = option.emoji,
+                label = label,
+                emoji = emoji,
                 isSelected = isSelected,
-                onClick = { onSelect(option.id) }
+                onClick = { onSelect(preset) }
             )
         }
     }
