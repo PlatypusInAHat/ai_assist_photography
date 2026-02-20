@@ -1,10 +1,15 @@
 package com.aiphoto.assist.ui
 
-import android.content.Context
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CameraAlt
@@ -13,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -31,12 +37,16 @@ import com.aiphoto.assist.composition.hints.RotateHint
 import com.aiphoto.assist.composition.hints.TextHint
 import com.aiphoto.assist.composition.presets.*
 import com.aiphoto.assist.sensors.LevelSensor
+import com.aiphoto.assist.vision.FaceDetectorWrapper
 import com.aiphoto.assist.vision.HorizonDetector
+import com.aiphoto.assist.vision.SubjectDetectorWrapper
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Main camera screen with preview, overlay guides, score, and preset picker.
+ * Main camera screen with preview, overlay guides, score, preset picker,
+ * and shutter button.
  */
 @Composable
 fun CameraScreen() {
@@ -50,6 +60,9 @@ fun CameraScreen() {
     var autoMode by remember { mutableStateOf(true) }
     var rollDeg by remember { mutableFloatStateOf(0f) }
 
+    // Flash overlay for capture feedback
+    var showFlash by remember { mutableStateOf(false) }
+
     // Sensor
     val levelSensor = remember { LevelSensor(ctx) }
     DisposableEffect(Unit) {
@@ -57,8 +70,17 @@ fun CameraScreen() {
         onDispose { levelSensor.stop() }
     }
 
-    // Vision
+    // Vision detectors
     val horizonDetector = remember { HorizonDetector() }
+    val faceDetector = remember { FaceDetectorWrapper() }
+    val subjectDetector = remember { SubjectDetectorWrapper() }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            faceDetector.close()
+            subjectDetector.close()
+        }
+    }
 
     // Preset manager
     val presetManager = remember {
@@ -72,6 +94,14 @@ fun CameraScreen() {
                 DiagonalPreset()
             )
         )
+    }
+
+    // Flash auto-dismiss
+    LaunchedEffect(showFlash) {
+        if (showFlash) {
+            delay(200)
+            showFlash = false
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -89,6 +119,8 @@ fun CameraScreen() {
                     analyzer = FrameAnalyzer(
                         levelSensor = levelSensor,
                         horizonDetector = horizonDetector,
+                        faceDetector = faceDetector,
+                        subjectDetector = subjectDetector,
                         presetManager = presetManager,
                         selectedPresetId = { selectedPresetId },
                         autoMode = { autoMode },
@@ -107,6 +139,19 @@ fun CameraScreen() {
         // ─── Overlay Canvas ──────────────────────────────────
         OverlayCanvas(evaluation = evaluation, rollDeg = rollDeg)
 
+        // ─── Flash overlay ───────────────────────────────────
+        AnimatedVisibility(
+            visible = showFlash,
+            enter = fadeIn(tween(50)),
+            exit = fadeOut(tween(150))
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.White)
+            )
+        }
+
         // ─── Top Bar: Preset name + Score ────────────────────
         TopInfoBar(
             presetName = currentPreset?.displayName ?: "Auto",
@@ -115,7 +160,7 @@ fun CameraScreen() {
             modifier = Modifier.align(Alignment.TopCenter)
         )
 
-        // ─── Bottom: Hints + Preset Picker ───────────────────
+        // ─── Bottom: Hints + Shutter + Preset Picker ─────────
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -131,7 +176,18 @@ fun CameraScreen() {
             // Hint text
             HintPanel(evaluation = evaluation)
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
+
+            // Shutter button
+            ShutterButton(
+                score = evaluation?.score,
+                onClick = {
+                    showFlash = true
+                    CameraHelper.capturePhoto(ctx)
+                }
+            )
+
+            Spacer(Modifier.height(16.dp))
 
             // Preset picker chips
             PresetPicker(
@@ -148,6 +204,53 @@ fun CameraScreen() {
                 }
             )
         }
+    }
+}
+
+// ─── Shutter Button ──────────────────────────────────────────────
+
+@Composable
+private fun ShutterButton(
+    score: Int?,
+    onClick: () -> Unit
+) {
+    // Ring color based on score
+    val ringColor = when {
+        score == null -> Color.White.copy(alpha = 0.5f)
+        score >= 80 -> Color(0xFF4CAF50)    // green
+        score >= 60 -> Color(0xFFFFB74D)    // amber
+        else -> Color(0xFFFF6B6B)           // red
+    }
+
+    // Subtle pulse when score >= 80
+    val scale by animateFloatAsState(
+        targetValue = if (score != null && score >= 80) 1.05f else 1f,
+        animationSpec = tween(300),
+        label = "shutterScale"
+    )
+
+    Box(
+        modifier = Modifier
+            .scale(scale)
+            .size(72.dp)
+            .border(4.dp, ringColor, CircleShape)
+            .padding(6.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.9f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        // Inner dot
+        Box(
+            Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(ringColor.copy(alpha = 0.6f))
+        )
     }
 }
 

@@ -71,4 +71,10 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // ML Kit — Face Detection (on-device)
+    implementation("com.google.mlkit:face-detection:16.1.6")
+
+    // ML Kit — Object Detection (on-device)
+    implementation("com.google.mlkit:object-detection:17.0.1")
 }
