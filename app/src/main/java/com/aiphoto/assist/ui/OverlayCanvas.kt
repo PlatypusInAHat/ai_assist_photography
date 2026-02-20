@@ -1,11 +1,14 @@
 package com.aiphoto.assist.ui
 
+import android.graphics.RectF
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -21,6 +24,7 @@ private val HorizonColor = Color.Yellow.copy(alpha = 0.7f)
 private val TargetColor = Color(0xFF64FFDA).copy(alpha = 0.8f)
 private val LevelIndicatorGood = Color(0xFF4CAF50).copy(alpha = 0.8f)
 private val LevelIndicatorBad = Color(0xFFFF6B6B).copy(alpha = 0.8f)
+private val SubjectBoxColor = Color(0xFF64FFDA).copy(alpha = 0.7f)
 
 /**
  * Full-screen canvas overlay for drawing composition guides.
@@ -40,9 +44,59 @@ fun OverlayCanvas(
             is OverlaySpec.Targets -> drawTargets(ov.points)
         }
 
+        // Draw detected subject bounding box
+        evaluation.subjectBox?.let { drawSubjectBox(it) }
+
         // Always draw level indicator
         drawLevelIndicator(rollDeg)
     }
+}
+
+// ─── Subject Bounding Box ────────────────────────────────────────
+
+private fun DrawScope.drawSubjectBox(box: RectF) {
+    val left = size.width * box.left
+    val top = size.height * box.top
+    val right = size.width * box.right
+    val bottom = size.height * box.bottom
+    val w = right - left
+    val h = bottom - top
+
+    // Dashed rectangle around subject
+    drawRect(
+        color = SubjectBoxColor,
+        topLeft = Offset(left, top),
+        size = Size(w, h),
+        style = Stroke(
+            width = 2.5f,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
+        )
+    )
+
+    // Corner brackets for emphasis (top-left, top-right, bottom-left, bottom-right)
+    val cornerLen = minOf(w, h) * 0.15f
+    val cornerStroke = 3.5f
+    val c = SubjectBoxColor
+
+    // Top-left
+    drawLine(c, Offset(left, top), Offset(left + cornerLen, top), cornerStroke, cap = StrokeCap.Round)
+    drawLine(c, Offset(left, top), Offset(left, top + cornerLen), cornerStroke, cap = StrokeCap.Round)
+    // Top-right
+    drawLine(c, Offset(right, top), Offset(right - cornerLen, top), cornerStroke, cap = StrokeCap.Round)
+    drawLine(c, Offset(right, top), Offset(right, top + cornerLen), cornerStroke, cap = StrokeCap.Round)
+    // Bottom-left
+    drawLine(c, Offset(left, bottom), Offset(left + cornerLen, bottom), cornerStroke, cap = StrokeCap.Round)
+    drawLine(c, Offset(left, bottom), Offset(left, bottom - cornerLen), cornerStroke, cap = StrokeCap.Round)
+    // Bottom-right
+    drawLine(c, Offset(right, bottom), Offset(right - cornerLen, bottom), cornerStroke, cap = StrokeCap.Round)
+    drawLine(c, Offset(right, bottom), Offset(right, bottom - cornerLen), cornerStroke, cap = StrokeCap.Round)
+
+    // Small center crosshair
+    val cx = left + w / 2f
+    val cy = top + h / 2f
+    val arm = 6f
+    drawLine(c.copy(alpha = 0.5f), Offset(cx - arm, cy), Offset(cx + arm, cy), 1.5f)
+    drawLine(c.copy(alpha = 0.5f), Offset(cx, cy - arm), Offset(cx, cy + arm), 1.5f)
 }
 
 // ─── Grid (Thirds / Phi) ─────────────────────────────────────────

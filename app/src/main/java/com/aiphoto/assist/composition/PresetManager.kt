@@ -21,6 +21,7 @@ class PresetManager(
         } else {
             presets.firstOrNull { it.id == selectedId } ?: bestPreset(f)
         }
-        return preset to preset.evaluate(f)
+        val eval = preset.evaluate(f)
+        return preset to eval.copy(subjectBox = f.subjectBox)
     }
 }

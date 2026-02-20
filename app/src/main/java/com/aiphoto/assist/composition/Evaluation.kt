@@ -27,7 +27,9 @@ data class Evaluation(
     /** Ordered list of hints (highest priority first) */
     val hints: List<Hint>,
     /** Which overlay to draw */
-    val overlay: OverlaySpec
+    val overlay: OverlaySpec,
+    /** Detected subject bounding box (normalised 0..1), for UI overlay */
+    val subjectBox: RectF? = null
 )
 
 /**

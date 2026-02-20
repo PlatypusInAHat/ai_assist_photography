@@ -1,8 +1,14 @@
 package com.aiphoto.assist.ui
 
+import android.net.Uri
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,7 +52,7 @@ import kotlin.math.roundToInt
 
 /**
  * Main camera screen with preview, overlay guides, score, preset picker,
- * and shutter button.
+ * shutter button, and capture review.
  */
 @Composable
 fun CameraScreen() {
@@ -60,8 +66,14 @@ fun CameraScreen() {
     var autoMode by remember { mutableStateOf(true) }
     var rollDeg by remember { mutableFloatStateOf(0f) }
 
-    // Flash overlay for capture feedback
+    // Capture state
     var showFlash by remember { mutableStateOf(false) }
+    var capturedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var capturedScore by remember { mutableIntStateOf(0) }
+    var capturedPresetName by remember { mutableStateOf("") }
+
+    // Haptic tracking — vibrate when score transitions to ≥80
+    var wasAbove80 by remember { mutableStateOf(false) }
 
     // Sensor
     val levelSensor = remember { LevelSensor(ctx) }
@@ -94,6 +106,30 @@ fun CameraScreen() {
                 DiagonalPreset()
             )
         )
+    }
+
+    // Haptic buzz when score crosses 80
+    val currentScore = evaluation?.score ?: 0
+    LaunchedEffect(currentScore) {
+        val isAbove80 = currentScore >= 80
+        if (isAbove80 && !wasAbove80) {
+            // Vibrate — short buzz
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val vm = ctx.getSystemService(VibratorManager::class.java)
+                    vm?.defaultVibrator?.vibrate(
+                        VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE)
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    val v = ctx.getSystemService(Vibrator::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        v?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        wasAbove80 = isAbove80
     }
 
     // Flash auto-dismiss
@@ -183,7 +219,12 @@ fun CameraScreen() {
                 score = evaluation?.score,
                 onClick = {
                     showFlash = true
-                    CameraHelper.capturePhoto(ctx)
+                    capturedScore = evaluation?.score ?: 0
+                    capturedPresetName = currentPreset?.displayName ?: "Auto"
+                    CameraHelper.capturePhoto(
+                        context = ctx,
+                        onSaved = { uri -> capturedPhotoUri = uri }
+                    )
                 }
             )
 
@@ -203,6 +244,18 @@ fun CameraScreen() {
                     }
                 }
             )
+        }
+
+        // ─── Capture Review Sheet ────────────────────────────
+        if (capturedPhotoUri != null) {
+            Box(Modifier.align(Alignment.BottomCenter)) {
+                CaptureReviewSheet(
+                    photoUri = capturedPhotoUri,
+                    score = capturedScore,
+                    presetName = capturedPresetName,
+                    onDismiss = { capturedPhotoUri = null }
+                )
+            }
         }
     }
 }
@@ -263,6 +316,13 @@ private fun TopInfoBar(
     rollDeg: Float,
     modifier: Modifier = Modifier
 ) {
+    // Animated score counter
+    val animatedScore by animateIntAsState(
+        targetValue = score ?: 0,
+        animationSpec = tween(durationMillis = 300),
+        label = "scoreAnim"
+    )
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -306,8 +366,8 @@ private fun TopInfoBar(
             // Score
             if (score != null) {
                 val scoreColor = when {
-                    score >= 80 -> Color(0xFF4CAF50)
-                    score >= 60 -> Color(0xFFFFB74D)
+                    animatedScore >= 80 -> Color(0xFF4CAF50)
+                    animatedScore >= 60 -> Color(0xFFFFB74D)
                     else -> Color(0xFFFF6B6B)
                 }
                 Box(
@@ -317,7 +377,7 @@ private fun TopInfoBar(
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "$score",
+                        text = "$animatedScore",
                         color = scoreColor,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold

@@ -2,9 +2,11 @@ package com.aiphoto.assist.camera
 
 import android.content.ContentValues
 import android.content.Context
+import android.media.MediaActionSound
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
-import android.widget.Toast
+
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
@@ -81,13 +83,20 @@ object CameraHelper {
      */
     fun capturePhoto(
         context: Context,
-        onSaved: (String) -> Unit = {},
+        onSaved: (Uri?) -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
         val capture = imageCapture ?: run {
             onError(IllegalStateException("ImageCapture not initialised"))
             return
         }
+
+        // Play shutter sound
+        try {
+            MediaActionSound().apply {
+                play(MediaActionSound.SHUTTER_CLICK)
+            }
+        } catch (_: Exception) { /* ignore on devices without sound */ }
 
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
             .format(System.currentTimeMillis())
@@ -112,13 +121,11 @@ object CameraHelper {
             ContextCompat.getMainExecutor(context),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    onSaved(fileName)
-                    Toast.makeText(context, "📸 Đã lưu: $fileName", Toast.LENGTH_SHORT).show()
+                    onSaved(output.savedUri)
                 }
 
                 override fun onError(exception: ImageCaptureException) {
                     onError(exception)
-                    Toast.makeText(context, "Lỗi chụp: ${exception.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         )

@@ -77,4 +77,7 @@ dependencies {
 
     // ML Kit — Object Detection (on-device)
     implementation("com.google.mlkit:object-detection:17.0.1")
+
+    // Coil — Image loading for Compose
+    implementation("io.coil-kt:coil-compose:2.5.0")
 }
