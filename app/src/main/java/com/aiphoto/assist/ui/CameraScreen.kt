@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.camera.core.Camera
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,6 +76,10 @@ fun CameraScreen() {
 
     // Haptic tracking — vibrate when score transitions to ≥80
     var wasAbove80 by remember { mutableStateOf(false) }
+
+    // Camera controls
+    var cameraInstance by remember { mutableStateOf<Camera?>(null) }
+    var showControls by remember { mutableStateOf(false) }
 
     // Sensor
     val levelSensor = remember { LevelSensor(ctx) }
@@ -165,7 +171,8 @@ fun CameraScreen() {
                             evaluation = e
                             rollDeg = levelSensor.rollDeg()
                         }
-                    )
+                    ),
+                    onCameraReady = { camera -> cameraInstance = camera }
                 )
                 previewView
             },
@@ -209,24 +216,54 @@ fun CameraScreen() {
                 .padding(bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Camera controls panel (zoom + EV)
+            CameraControlsPanel(
+                camera = cameraInstance,
+                visible = showControls
+            )
+
+            Spacer(Modifier.height(8.dp))
+
             // Hint text
             HintPanel(evaluation = evaluation)
 
             Spacer(Modifier.height(16.dp))
 
-            // Shutter button
-            ShutterButton(
-                score = evaluation?.score,
-                onClick = {
-                    showFlash = true
-                    capturedScore = evaluation?.score ?: 0
-                    capturedPresetName = currentPreset?.displayName ?: "Auto"
-                    CameraHelper.capturePhoto(
-                        context = ctx,
-                        onSaved = { uri -> capturedPhotoUri = uri }
+            // Shutter row: controls toggle + shutter + spacer
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Controls toggle button
+                IconButton(
+                    onClick = { showControls = !showControls }
+                ) {
+                    Icon(
+                        Icons.Rounded.Tune,
+                        contentDescription = "Camera controls",
+                        tint = if (showControls) Color(0xFF64FFDA) else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(28.dp)
                     )
                 }
-            )
+
+                // Shutter button
+                ShutterButton(
+                    score = evaluation?.score,
+                    onClick = {
+                        showFlash = true
+                        capturedScore = evaluation?.score ?: 0
+                        capturedPresetName = currentPreset?.displayName ?: "Auto"
+                        CameraHelper.capturePhoto(
+                            context = ctx,
+                            onSaved = { uri -> capturedPhotoUri = uri }
+                        )
+                    }
+                )
+
+                // Spacer to balance layout
+                Spacer(Modifier.size(48.dp))
+            }
 
             Spacer(Modifier.height(16.dp))
 

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
@@ -36,7 +37,8 @@ object CameraHelper {
         context: Context,
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView,
-        analyzer: ImageAnalysis.Analyzer
+        analyzer: ImageAnalysis.Analyzer,
+        onCameraReady: (Camera) -> Unit = {}
     ) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
@@ -61,13 +63,14 @@ object CameraHelper {
 
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                val camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     preview,
                     imageAnalysis,
                     capture
                 )
+                onCameraReady(camera)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
